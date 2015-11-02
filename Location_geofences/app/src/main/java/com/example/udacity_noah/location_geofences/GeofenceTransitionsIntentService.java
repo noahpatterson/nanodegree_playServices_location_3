@@ -8,6 +8,8 @@ import android.content.Context;
 import com.google.android.gms.location.Geofence;
 import com.google.android.gms.location.GeofencingEvent;
 
+import java.util.List;
+
 /**
  * An {@link IntentService} subclass for handling asynchronous task requests in
  * a service on a separate handler thread.
@@ -38,7 +40,16 @@ public class GeofenceTransitionsIntentService extends IntentService {
 
         //check if transition is enter or exit
         if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_ENTER || geofenceTransition == Geofence.GEOFENCE_TRANSITION_EXIT) {
-            
+            List<Geofence> geofenceList = geofencingEvent.getTriggeringGeofences();
+            String geoFenceIds = getGeofenceTransitionDetails(geofenceList);
         }
+    }
+
+    private String getGeofenceTransitionDetails(List<Geofence> geofences) {
+        String allGeofenceIds = "";
+        for (Geofence geofence : geofences) {
+            allGeofenceIds +=  geofence.getRequestId().toString();
+        }
+        return allGeofenceIds;
     }
 }

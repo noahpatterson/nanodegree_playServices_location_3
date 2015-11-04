@@ -1,13 +1,19 @@
 package com.example.udacity_noah.location_geofences;
 
 import android.app.IntentService;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.app.TaskStackBuilder;
 import android.content.Intent;
 import android.content.Context;
+import android.support.v4.app.NotificationCompat;
+import android.text.TextUtils;
 
 
 import com.google.android.gms.location.Geofence;
 import com.google.android.gms.location.GeofencingEvent;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -18,6 +24,7 @@ import java.util.List;
  * helper methods.
  */
 public class GeofenceTransitionsIntentService extends IntentService {
+    private static final int NOTIFICATION_ID = 1;
 
     public GeofenceTransitionsIntentService() {
         super("GeofenceTransitionsIntentService");
@@ -37,19 +44,62 @@ public class GeofenceTransitionsIntentService extends IntentService {
 
         // get the transition type
         int geofenceTransition = geofencingEvent.getGeofenceTransition();
+        String geofenceTranstionTypeString = getGeofenceTransitionTypeString(geofenceTransition);
 
         //check if transition is enter or exit
         if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_ENTER || geofenceTransition == Geofence.GEOFENCE_TRANSITION_EXIT) {
             List<Geofence> geofenceList = geofencingEvent.getTriggeringGeofences();
-            String geoFenceIds = getGeofenceTransitionDetails(geofenceList);
+            String geoFenceIds = getGeofenceTransitionDetails(geofenceList, geofenceTranstionTypeString);
+            sendNotification(geoFenceIds);
         }
     }
 
-    private String getGeofenceTransitionDetails(List<Geofence> geofences) {
-        String allGeofenceIds = "";
+    private String getGeofenceTransitionDetails(List<Geofence> geofences, String transitionType) {
+        ArrayList triggeringIds = new ArrayList();
         for (Geofence geofence : geofences) {
-            allGeofenceIds +=  geofence.getRequestId().toString();
+            triggeringIds.add(geofence.getRequestId());
         }
-        return allGeofenceIds;
+        return transitionType + ": " + TextUtils.join(", ", triggeringIds);
+    }
+
+    private String getGeofenceTransitionTypeString(int geofenceTransitionType) {
+        switch (geofenceTransitionType) {
+            case Geofence.GEOFENCE_TRANSITION_ENTER:
+                return "Enter";
+            case Geofence.GEOFENCE_TRANSITION_EXIT:
+                return "Exit";
+            case Geofence.GEOFENCE_TRANSITION_DWELL:
+                return "Dwell";
+            default:
+                return "Unknown transition";
+        }
+    }
+
+    private void sendNotification(String geofencesCrossedString) {
+        Intent resultIntent = new Intent(this, MainActivity.class);
+        PendingIntent resultPendingIntent;
+
+        //maintain proper backstack
+        TaskStackBuilder stackBuilder = null;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.JELLY_BEAN) {
+            stackBuilder = TaskStackBuilder.create(this);
+
+
+            stackBuilder.addParentStack(MainActivity.class);
+            stackBuilder.addNextIntent(resultIntent);
+
+            resultPendingIntent = stackBuilder.getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT);
+        } else {
+            resultPendingIntent = PendingIntent.getActivity(this,0,resultIntent,PendingIntent.FLAG_UPDATE_CURRENT);
+        }
+
+
+        NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle("Geofence Crossed!")
+                .setContentText(geofencesCrossedString)
+                .setContentIntent(resultPendingIntent);
+        NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        notificationManager.notify(NOTIFICATION_ID, notificationBuilder.build());
     }
 }

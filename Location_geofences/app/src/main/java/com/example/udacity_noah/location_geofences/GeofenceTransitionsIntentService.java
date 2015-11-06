@@ -6,8 +6,10 @@ import android.app.PendingIntent;
 import android.app.TaskStackBuilder;
 import android.content.Intent;
 import android.content.Context;
+import android.nfc.Tag;
 import android.support.v4.app.NotificationCompat;
 import android.text.TextUtils;
+import android.util.Log;
 
 
 import com.google.android.gms.location.Geofence;
@@ -25,6 +27,7 @@ import java.util.List;
  */
 public class GeofenceTransitionsIntentService extends IntentService {
     private static final int NOTIFICATION_ID = 1;
+    private static final String TAG = "intent service";
 
     public GeofenceTransitionsIntentService() {
         super("GeofenceTransitionsIntentService");
@@ -37,6 +40,7 @@ public class GeofenceTransitionsIntentService extends IntentService {
 
     @Override
     protected void onHandleIntent(Intent intent) {
+        Log.d(TAG, "handle intent");
         GeofencingEvent geofencingEvent = GeofencingEvent.fromIntent(intent);
         if (geofencingEvent.hasError()) {
             return;
@@ -48,9 +52,13 @@ public class GeofenceTransitionsIntentService extends IntentService {
 
         //check if transition is enter or exit
         if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_ENTER || geofenceTransition == Geofence.GEOFENCE_TRANSITION_EXIT) {
+
             List<Geofence> geofenceList = geofencingEvent.getTriggeringGeofences();
             String geoFenceIds = getGeofenceTransitionDetails(geofenceList, geofenceTranstionTypeString);
+            Log.d(TAG, geoFenceIds);
             sendNotification(geoFenceIds);
+        } else if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_DWELL) {
+            Log.d(TAG, "Dwelling");
         }
     }
 

@@ -1,6 +1,8 @@
 package com.example.udacity_noah.location_geofences;
 
 import android.Manifest;
+import android.app.PendingIntent;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
@@ -14,18 +16,29 @@ import android.util.Log;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.GoogleApiClient.ConnectionCallbacks;
 import com.google.android.gms.common.api.GoogleApiClient.OnConnectionFailedListener;
+import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.common.api.Status;
+import com.google.android.gms.location.Geofence;
+import com.google.android.gms.location.GeofencingRequest;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.maps.model.LatLng;
 
-public class MainActivity extends AppCompatActivity implements ConnectionCallbacks, OnConnectionFailedListener, LocationListener {
+import java.util.ArrayList;
+import java.util.Map;
+
+public class MainActivity extends AppCompatActivity implements ConnectionCallbacks, OnConnectionFailedListener, LocationListener, ResultCallback<Status> {
     private static final String TAG = "main_activity";
     private static final int MY_PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION = 1;
     private GoogleApiClient googleApiClient;
+
+    private ArrayList<Geofence> activeGeofences;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,6 +56,10 @@ public class MainActivity extends AppCompatActivity implements ConnectionCallbac
             }
         });
 
+        activeGeofences = new ArrayList<Geofence>();
+
+        populateGeofenceList();
+
         //get google api client
         googleApiClient = new GoogleApiClient.Builder(this)
                 .addConnectionCallbacks(this)
@@ -51,10 +68,12 @@ public class MainActivity extends AppCompatActivity implements ConnectionCallbac
                 .build();
 
 
+
     }
 
     @Override
     protected void onStart() {
+        Log.d(TAG, "in on start");
         super.onStart();
         googleApiClient.connect();
     }
@@ -91,6 +110,7 @@ public class MainActivity extends AppCompatActivity implements ConnectionCallbac
 
     @Override
     public void onConnected(Bundle bundle) {
+        Log.d(TAG, "in onConnected");
         getPermission();
     }
 
@@ -110,6 +130,7 @@ public class MainActivity extends AppCompatActivity implements ConnectionCallbac
     }
 
     public void getPermission() {
+        Log.d(TAG, "in getPermission");
         if (ContextCompat.checkSelfPermission(this,
                 Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -137,12 +158,15 @@ public class MainActivity extends AppCompatActivity implements ConnectionCallbac
             }
         } else {
 //            getLastLocation();
+            return;
+
         }
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode,
                                            String permissions[], int[] grantResults) {
+        Log.d(TAG, "in onRequestPermissionsResult");
         switch (requestCode) {
             case MY_PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION: {
                 // If request is cancelled, the result arrays are empty.
@@ -152,6 +176,8 @@ public class MainActivity extends AppCompatActivity implements ConnectionCallbac
                     // permission was granted, yay! Do the
                     // contacts-related task you need to do.
 //                    getLastLocation();
+                    return;
+
 
                 } else {
 
@@ -163,6 +189,56 @@ public class MainActivity extends AppCompatActivity implements ConnectionCallbac
 
             // other 'case' lines to check for other
             // permissions this app might request
+        }
+    }
+
+    private void populateGeofenceList() {
+        for (Map.Entry<String, LatLng> geofence : Constants.DC_LOCS.entrySet()) {
+            Geofence geofenceToAdd = new Geofence.Builder()
+                    .setCircularRegion(
+                            geofence.getValue().latitude,
+                            geofence.getValue().longitude,
+                            Constants.GEOFENCE_RADIUS_IN_METERS)
+                    .setRequestId(geofence.getKey())
+                    .setExpirationDuration(Constants.GEOFENCE_EXPIRATION_IN_MILLISECONDS)
+                    .setLoiteringDelay(10000)
+                    .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER | Geofence.GEOFENCE_TRANSITION_EXIT | Geofence.GEOFENCE_TRANSITION_DWELL)
+                    .build();
+            activeGeofences.add(geofenceToAdd);
+        }
+    }
+
+    private GeofencingRequest getGeofencingRequest() {
+        return new GeofencingRequest.Builder().setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
+                .addGeofences(activeGeofences)
+                .build();
+    }
+
+    private PendingIntent getGeofencingPendingIntent() {
+        Intent intent = new Intent(this, GeofenceTransitionsIntentService.class);
+        return PendingIntent.getService(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+    }
+
+    public void addGeofencesButtonHandler(View view) {
+        try {
+            LocationServices.GeofencingApi.addGeofences(
+                    googleApiClient,
+                    getGeofencingRequest(),
+                    getGeofencingPendingIntent()).setResultCallback(this);
+    } catch (SecurityException securityException) {
+        // Catch exception generated if the app does not use ACCESS_FINE_LOCATION permission.
+            Log.d(TAG, "add security exception");
+    }
+    }
+
+
+
+
+    public void onResult(Status status) {
+        if (status.isSuccess()) {
+            Toast.makeText(this,"geolocations added", Toast.LENGTH_SHORT).show();
+        } else {
+            Toast.makeText(this,"unable to add geolocations", Toast.LENGTH_SHORT).show();
         }
     }
 }
